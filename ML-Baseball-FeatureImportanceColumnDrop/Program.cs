@@ -21,6 +21,8 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
         // Set seed to static value for re-producable model results (or DateTime for pseudo-random)
         private static int _seed = 100;
 
+        private static int numberOfModelsToBuildForEeachIteration = 10;
+
         // CONFIGURATION ARRAYS
 
         // List of feature columns used for training
@@ -76,7 +78,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
             var _jobRunId = Guid.NewGuid();
 
             var featureSetups = new List<FeatureSetup>();
-            var numberOfModelsToBuildForEeachIteration = 5;
+            var dateTime = DateTime.Now.ToUniversalTime();
 
             for (int i = 0; i != numberOfModelsToBuildForEeachIteration; i++)
             {
@@ -93,7 +95,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                 {
                     Name = "Baseline",
                     FeatureColumns = featureColumns,
-                    ColumnNameRemoved = string.Empty,
+                    ColumnNameRemoved = "Baseline",
                     GamAlgorithmParameters = gamAlgorithmParameters
                 });
 
@@ -135,6 +137,8 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     stopWatch.Stop();
                     var secondsElapsed = Math.Round(stopWatch.Elapsed.TotalSeconds, 2);
 
+                    var mccMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.ConfusionMatrix.MatthewsCorrelationCoefficient()).Sum() / (_numberOfFolds), 4);
                     var f1MetricsAvg = Math.Round(
                         crossValidatedModels.Select(fold => fold.Metrics.F1Score).Sum() / (_numberOfFolds), 4);
                     var aucPRMetricsAvg = Math.Round(
@@ -147,13 +151,14 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                         crossValidatedModels.Select(fold => fold.Metrics.NegativePrecision).Sum() / (_numberOfFolds), 4);
                     var negativeRecallMetricsAvg = Math.Round(
                         crossValidatedModels.Select(fold => fold.Metrics.NegativeRecall).Sum() / (_numberOfFolds), 4);
-                    var metricsRow = $@"{_jobRunId},{secondsElapsed},{featureSetup.Name},{featureSetup.ColumnNameRemoved},{_algorithmName},{_seed},{featureSetup.GamAlgorithmParameters.NumberOfIterations},{featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature},{featureSetup.GamAlgorithmParameters.LearningRate},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},{positiveRecallMetricsAvg},{negativePrecisionMetricsAvg},{negativeRecallMetricsAvg}";
+                    var metricsRow = $@"{_jobRunId},{dateTime},{labelColumn},{secondsElapsed},{featureSetup.Name},{featureSetup.ColumnNameRemoved},{_algorithmName},{_seed},{featureSetup.GamAlgorithmParameters.NumberOfIterations},{featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature},{featureSetup.GamAlgorithmParameters.LearningRate},{mccMetricsAvg},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},{positiveRecallMetricsAvg},{negativePrecisionMetricsAvg},{negativeRecallMetricsAvg}";
 
                     _modelPerformanceMetrics.Add(
                         new ModelPerformanceMetrics
                         {
                             FeatureStepName = featureSetup.Name,
                             LabelColumn = labelColumn,
+                            MCCScore = mccMetricsAvg,
                             F1Score = f1MetricsAvg,
                             AreaUnderPrecisionRecallCurve = aucPRMetricsAvg,
                             PositivePrecision = positivePrecisionMetricsAvg,
@@ -165,6 +170,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
 
                     Console.WriteLine("Average Fold Crossvalidation Performance Metrics: " + labelColumn + " | " + featureSetup.Name);
                     Console.WriteLine("********************************");
+                    Console.WriteLine("MCC Score:                " + mccMetricsAvg);
                     Console.WriteLine("F1 Score:                 " + f1MetricsAvg);
                     Console.WriteLine("AUC - Prec/Recall Score:  " + aucPRMetricsAvg);
                     Console.WriteLine("Precision:                " + positivePrecisionMetricsAvg);

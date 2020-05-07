@@ -8,6 +8,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
     {
         public string LabelColumn;
         public string FeatureStepName;
+        public double MCCScore;
         public double F1Score;
         public double AreaUnderPrecisionRecallCurve;
         public double PositivePrecision;
