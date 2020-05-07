@@ -41,22 +41,24 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
         {
             Console.Title = "Baseball Feature Importance with Column Dropout - Training Model Job";
             Console.ForegroundColor = ConsoleColor.Cyan;
-            Console.WriteLine("Starting Baseball Predictions - Training Model Job");
+            Console.WriteLine("Starting Baseball Predictions - Training Model Job w/ Feature Importance Column Dropout");
             Console.WriteLine("Using ML.NET - Version 1.4");
             Console.WriteLine();
             Console.ResetColor();
+            Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("This job will build a series of models that will predict both:");
             Console.WriteLine("1) Whether a baseball batter would make it on the HOF Ballot (OnHallOfFameBallot)");
             Console.WriteLine("2) Whether a baseball batter would be inducted to the HOF (InductedToHallOfFame).");
             Console.WriteLine("Based on an MLB batter's summarized career batting statistics.\n");
             Console.WriteLine("Note: The goal is to build a 'good enough' set of models & showcase the ML.NET framework.");
             Console.WriteLine("Note: For better models advanced historical scaling and features should be performed.");
+            Console.ResetColor();
             Console.WriteLine();
 
             // Set the seed explicitly for reproducability (models will be built with consistent results)
             _mlContext = new MLContext(seed: _seed);
 
-            // Read the training/validation data from a text file
+            // Read the Training data from a text file
             var dataFull = _mlContext.Data.LoadFromTextFile<MLBBaseballBatter>(path: _fullDataPath,
                 hasHeader: true, separatorChar: ',', allowQuoting: false);
 
@@ -70,23 +72,46 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
 
             // Cache the loaded data
             var cachedFullData = _mlContext.Data.Cache(dataFull);
-
-            // Name of Algorithm
+            // Name of Algorithm used in training
+            // Using Gam as it gives very good results and trains fast
             var _algorithmName = "Gam";
+            var _jobRunId = Guid.NewGuid();
 
             var featureSetups = new List<FeatureSetup>();
-            featureSetups.Add(new FeatureSetup { Name = "Baseline", FeatureColumns = featureColumns });
-            // Add Feature Columns with each column removed
-            foreach (var feature in featureColumns)
-            {
-                var featuresEdited = featureColumns.Where(a => (a != feature)).Select(b => b).ToArray();
-                featureSetups.Add(new FeatureSetup { Name = $"Removed: {feature}", FeatureColumns = featuresEdited });
-            }
+            var numberOfModelsToBuildForEeachIteration = 5;
 
-            // GAM Parameters
-            var _numberOfIterations = new Random(_seed).Next(9500, 9500);
-            var _learningRate = (double)new Random(_seed).Next(20, 20) / 10000;
-            var _maximumBinCountPerFeature = new Random(_seed).Next(300, 300);
+            for (int i = 0; i != numberOfModelsToBuildForEeachIteration; i++)
+            {
+                var gamAlgorithmParameters = new GamAlgorithmParameters
+                {
+                    // GAM Parameters
+                    NumberOfIterations = new Random(_seed + i).Next(4000, 30000),
+                    LearningRate = (double)new Random(_seed + i).Next(5, 40) / 10000, // 0.0005 - 0.0040
+                    MaximumBinCountPerFeature = new Random(_seed + i).Next(50, 800)
+                };
+
+                // Add a Baseline training run
+                featureSetups.Add(new FeatureSetup
+                {
+                    Name = "Baseline",
+                    FeatureColumns = featureColumns,
+                    ColumnNameRemoved = string.Empty,
+                    GamAlgorithmParameters = gamAlgorithmParameters
+                });
+
+                // Add Feature Columns with each column removed
+                foreach (var feature in featureColumns)
+                {
+                    var featuresEdited = featureColumns.Where(a => (a != feature)).Select(b => b).ToArray();
+                    featureSetups.Add(new FeatureSetup
+                    {
+                        Name = $"Removed: {feature}",
+                        ColumnNameRemoved = feature,
+                        FeatureColumns = featuresEdited,
+                        GamAlgorithmParameters = gamAlgorithmParameters
+                    });
+                }
+            }
 
             foreach (var labelColumn in labelColumns)
             {
@@ -96,9 +121,9 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     var learningPipelineGeneralizedAdditiveModelsOnHallOfFameBallot =
                         Utilities.GetBaseLinePipeline(_mlContext, featureSetup.FeatureColumns).Append(
                         _mlContext.BinaryClassification.Trainers.Gam(labelColumnName: labelColumn,
-                            learningRate: _learningRate,
-                            numberOfIterations: _numberOfIterations,
-                            maximumBinCountPerFeature: _maximumBinCountPerFeature
+                            learningRate: featureSetup.GamAlgorithmParameters.LearningRate,
+                            numberOfIterations: featureSetup.GamAlgorithmParameters.NumberOfIterations,
+                            maximumBinCountPerFeature: featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature
                             )
                         );
                     // Fit (Build a Machine Learning Model)
@@ -110,12 +135,21 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                         numberOfFolds: _numberOfFolds, labelColumnName: labelColumn, seed: _seed);
                     Console.WriteLine($"Finished: {featureSetup.Name}");
                     stopWatch.Stop();
+                    var secondsElapsed = Math.Round(stopWatch.Elapsed.TotalSeconds, 2);
 
-                    var f1MetricsAvg = crossValidatedModels.Select(fold => fold.Metrics.F1Score).Sum() / (_numberOfFolds);
-                    var aucPRMetricsAvg = crossValidatedModels.Select(fold => fold.Metrics.AreaUnderPrecisionRecallCurve).Sum() / (_numberOfFolds);
-                    var positivePrecisionMetricsAvg = crossValidatedModels.Select(fold => fold.Metrics.PositivePrecision).Sum() / (_numberOfFolds);
-                    var positiveRecallMetricsAvg = crossValidatedModels.Select(fold => fold.Metrics.PositiveRecall).Sum() / (_numberOfFolds);
-                    var metricsRow = $@"{featureSetup.Name},{_algorithmName},{_seed},{_numberOfIterations},{_maximumBinCountPerFeature},{_learningRate},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},{positiveRecallMetricsAvg}";
+                    var f1MetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.F1Score).Sum() / (_numberOfFolds), 4);
+                    var aucPRMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.AreaUnderPrecisionRecallCurve).Sum() / (_numberOfFolds), 4);
+                    var positivePrecisionMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.PositivePrecision).Sum() / (_numberOfFolds), 4);
+                    var positiveRecallMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.PositiveRecall).Sum() / (_numberOfFolds), 4);
+                    var negativePrecisionMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.NegativePrecision).Sum() / (_numberOfFolds), 4);
+                    var negativeRecallMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.NegativeRecall).Sum() / (_numberOfFolds), 4);
+                    var metricsRow = $@"{_jobRunId},{secondsElapsed},{featureSetup.Name},{featureSetup.ColumnNameRemoved},{_algorithmName},{_seed},{featureSetup.GamAlgorithmParameters.NumberOfIterations},{featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature},{featureSetup.GamAlgorithmParameters.LearningRate},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},{positiveRecallMetricsAvg},{negativePrecisionMetricsAvg},{negativeRecallMetricsAvg}";
 
                     _modelPerformanceMetrics.Add(
                         new ModelPerformanceMetrics
@@ -125,18 +159,23 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                             F1Score = f1MetricsAvg,
                             AreaUnderPrecisionRecallCurve = aucPRMetricsAvg,
                             PositivePrecision = positivePrecisionMetricsAvg,
-                            PositiveRecall = positiveRecallMetricsAvg
+                            PositiveRecall = positiveRecallMetricsAvg,
+                            NegativePrecision = negativePrecisionMetricsAvg,
+                            NegativeRecall = negativeRecallMetricsAvg
                         }
                     );
 
-                    Console.WriteLine("Crossvalidation Performance Metrics for " + labelColumn + " | " + featureSetup.Name);
-                    Console.WriteLine("**************************");
+                    Console.WriteLine("Average Fold Crossvalidation Performance Metrics: " + labelColumn + " | " + featureSetup.Name);
+                    Console.WriteLine("********************************");
                     Console.WriteLine("F1 Score:                 " + f1MetricsAvg);
                     Console.WriteLine("AUC - Prec/Recall Score:  " + aucPRMetricsAvg);
                     Console.WriteLine("Precision:                " + positivePrecisionMetricsAvg);
                     Console.WriteLine("Recall:                   " + positiveRecallMetricsAvg);
-                    Console.WriteLine("**************************");
-                    Console.WriteLine("Model Build Time: " + stopWatch.Elapsed.TotalSeconds);
+                    Console.WriteLine("Negative Precision:       " + negativePrecisionMetricsAvg);
+                    Console.WriteLine("Negative Recall:          " + negativeRecallMetricsAvg);
+                    Console.WriteLine("********************************");
+                    Console.WriteLine("Model Build Time: " + Math.Round(stopWatch.Elapsed.TotalSeconds, 2) + "sec");
+                    Console.WriteLine();
 
                     using (System.IO.StreamWriter file = File.AppendText(_modelPerformanceMetricsFile))
                     {

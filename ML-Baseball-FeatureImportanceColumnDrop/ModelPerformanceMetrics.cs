@@ -12,5 +12,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
         public double AreaUnderPrecisionRecallCurve;
         public double PositivePrecision;
         public double PositiveRecall;
+        public double NegativePrecision;
+        public double NegativeRecall;
     }
 }
