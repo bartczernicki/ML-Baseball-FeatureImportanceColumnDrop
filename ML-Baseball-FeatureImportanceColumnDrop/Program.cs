@@ -1,12 +1,10 @@
 ﻿using Microsoft.ML;
-using Microsoft.ML.Trainers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 
 namespace ML_Baseball_FeatureImportanceColumnDrop
 {
