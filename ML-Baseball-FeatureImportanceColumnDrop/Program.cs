@@ -85,9 +85,9 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                 var gamAlgorithmParameters = new GamAlgorithmParameters
                 {
                     // GAM Parameters
-                    NumberOfIterations = new Random(_seed + i).Next(4000, 30000),
-                    LearningRate = (double)new Random(_seed + i).Next(5, 40) / 10000, // 0.0005 - 0.0040
-                    MaximumBinCountPerFeature = new Random(_seed + i).Next(50, 800)
+                    NumberOfIterations = new Random(_seed + i).Next(6000, 35000),
+                    LearningRate = (double)new Random(_seed + i).Next(5, 30) / 10000, // 0.0005 - 0.0030
+                    MaximumBinCountPerFeature = new Random(_seed + i).Next(150, 1000)
                 };
 
                 // Add a Baseline training run
@@ -113,6 +113,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                 }
             }
 
+            var stepNumber = 1;
             foreach (var labelColumn in labelColumns)
             {
                 foreach (var featureSetup in featureSetups)
@@ -133,8 +134,9 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     var _numberOfFolds = 5;
                     var crossValidatedModels = _mlContext.BinaryClassification.CrossValidate(cachedFullData, learningPipelineGeneralizedAdditiveModelsOnHallOfFameBallot,
                         numberOfFolds: _numberOfFolds, labelColumnName: labelColumn, seed: _seed);
-                    Console.WriteLine($"Finished: {featureSetup.Name}");
+                    Console.WriteLine($"Finished #{stepNumber++}: {featureSetup.Name}");
                     stopWatch.Stop();
+                    //stepNumber++;
                     var secondsElapsed = Math.Round(stopWatch.Elapsed.TotalSeconds, 2);
 
                     var mccMetricsAvg = Math.Round(
