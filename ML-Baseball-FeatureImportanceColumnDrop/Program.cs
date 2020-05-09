@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 
 namespace ML_Baseball_FeatureImportanceColumnDrop
 {
@@ -85,7 +86,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                 var gamAlgorithmParameters = new GamAlgorithmParameters
                 {
                     // GAM Parameters
-                    NumberOfIterations = new Random(_seed + i).Next(6000, 35000),
+                    NumberOfIterations = new Random(_seed + i).Next(5000, 40000),
                     LearningRate = (double)new Random(_seed + i).Next(5, 30) / 10000, // 0.0005 - 0.0030
                     MaximumBinCountPerFeature = new Random(_seed + i).Next(150, 1000)
                 };
@@ -112,6 +113,27 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     });
                 }
             }
+
+            // Read the file and check if the header row exists
+            if (!File.Exists(_modelPerformanceMetricsFile))
+            {
+                File.WriteAllText(_modelPerformanceMetricsFile, string.Empty, Encoding.UTF8);
+            }
+
+            var fileText = File.ReadAllText(_modelPerformanceMetricsFile);
+            if (string.IsNullOrWhiteSpace(fileText))
+            {
+                var metricsHeaderRow = 
+                    $@"JobID,DateTime,LabelColumn,ModelTrainingTime,Description,ColumnRemoved,Algorithm,Seed," +
+                    $@"Iterations,MaxBinNumber,LearningRate,GeometricMean,MCCMetric,F1ScoreMetric,AucPrecisionRecallMetric," +
+                    $@"PositivePrecisionMetric,PositiveRecallMetric,NegativePrecisionMetric,NegativeRecallMetric";
+
+                using (StreamWriter file = File.AppendText(_modelPerformanceMetricsFile))
+                {
+                    file.WriteLine(metricsHeaderRow);
+                }
+            }
+
 
             var stepNumber = 1;
             foreach (var labelColumn in labelColumns)
@@ -141,6 +163,8 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
 
                     var mccMetricsAvg = Math.Round(
                         crossValidatedModels.Select(fold => fold.Metrics.ConfusionMatrix.MatthewsCorrelationCoefficient()).Sum() / (_numberOfFolds), 4);
+                    var geometricMeanMetricsAvg = Math.Round(
+                        crossValidatedModels.Select(fold => fold.Metrics.ConfusionMatrix.GeometricMean()).Sum() / (_numberOfFolds), 4);
                     var f1MetricsAvg = Math.Round(
                         crossValidatedModels.Select(fold => fold.Metrics.F1Score).Sum() / (_numberOfFolds), 4);
                     var aucPRMetricsAvg = Math.Round(
@@ -153,7 +177,10 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                         crossValidatedModels.Select(fold => fold.Metrics.NegativePrecision).Sum() / (_numberOfFolds), 4);
                     var negativeRecallMetricsAvg = Math.Round(
                         crossValidatedModels.Select(fold => fold.Metrics.NegativeRecall).Sum() / (_numberOfFolds), 4);
-                    var metricsRow = $@"{_jobRunId},{dateTime},{labelColumn},{secondsElapsed},{featureSetup.Name},{featureSetup.ColumnNameRemoved},{_algorithmName},{_seed},{featureSetup.GamAlgorithmParameters.NumberOfIterations},{featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature},{featureSetup.GamAlgorithmParameters.LearningRate},{mccMetricsAvg},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},{positiveRecallMetricsAvg},{negativePrecisionMetricsAvg},{negativeRecallMetricsAvg}";
+                    var metricsRow = $@"{_jobRunId},{dateTime},{labelColumn},{secondsElapsed},{featureSetup.Name},{featureSetup.ColumnNameRemoved},"+
+                        $@"{_algorithmName},{_seed},{featureSetup.GamAlgorithmParameters.NumberOfIterations},{featureSetup.GamAlgorithmParameters.MaximumBinCountPerFeature},"+
+                        $@"{featureSetup.GamAlgorithmParameters.LearningRate},{mccMetricsAvg},{geometricMeanMetricsAvg},{f1MetricsAvg},{aucPRMetricsAvg},{positivePrecisionMetricsAvg},"+
+                        $@"{positiveRecallMetricsAvg},{negativePrecisionMetricsAvg},{negativeRecallMetricsAvg}";
 
                     _modelPerformanceMetrics.Add(
                         new ModelPerformanceMetrics
@@ -161,6 +188,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                             FeatureStepName = featureSetup.Name,
                             LabelColumn = labelColumn,
                             MCCScore = mccMetricsAvg,
+                            GeometricMean = geometricMeanMetricsAvg,
                             F1Score = f1MetricsAvg,
                             AreaUnderPrecisionRecallCurve = aucPRMetricsAvg,
                             PositivePrecision = positivePrecisionMetricsAvg,
@@ -173,6 +201,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     Console.WriteLine("Average Fold Crossvalidation Performance Metrics: " + labelColumn + " | " + featureSetup.Name);
                     Console.WriteLine("********************************");
                     Console.WriteLine("MCC Score:                " + mccMetricsAvg);
+                    Console.WriteLine("Geometric Mean:           " + geometricMeanMetricsAvg);
                     Console.WriteLine("F1 Score:                 " + f1MetricsAvg);
                     Console.WriteLine("AUC - Prec/Recall Score:  " + aucPRMetricsAvg);
                     Console.WriteLine("Precision:                " + positivePrecisionMetricsAvg);
@@ -183,7 +212,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
                     Console.WriteLine("Model Build Time: " + Math.Round(stopWatch.Elapsed.TotalSeconds, 2) + "sec");
                     Console.WriteLine();
 
-                    using (System.IO.StreamWriter file = File.AppendText(_modelPerformanceMetricsFile))
+                    using (StreamWriter file = File.AppendText(_modelPerformanceMetricsFile))
                     {
                         file.WriteLine(metricsRow);
                     }

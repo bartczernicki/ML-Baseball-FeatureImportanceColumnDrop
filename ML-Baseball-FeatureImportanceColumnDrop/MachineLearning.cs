@@ -25,5 +25,21 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
 
             return mcc;
         }
-    }
+
+        public static double GeometricMean(this ConfusionMatrix confusionMatrix)
+        {
+            var truePositives = confusionMatrix.GetCountForClassPair(0, 0);
+            var trueNegatives = confusionMatrix.GetCountForClassPair(1, 1);
+            var falseNegatives = confusionMatrix.GetCountForClassPair(1, 0);
+            var falsePositives = confusionMatrix.GetCountForClassPair(0, 1);
+
+            var sensitivty = truePositives / (truePositives + falseNegatives);
+            var specificity = trueNegatives / (falsePositives + trueNegatives);
+
+            var geometricMean = Math.Sqrt(sensitivty * specificity);
+
+            return geometricMean;
+        }
+
+        }
 }
