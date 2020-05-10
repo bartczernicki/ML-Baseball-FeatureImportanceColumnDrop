@@ -22,7 +22,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
         // Set seed to static value for re-producable model results (or DateTime for pseudo-random)
         private static int _seed = 100;
 
-        private static int numberOfModelsToBuildForEeachIteration = 10;
+        private static int numberOfModelsToBuildForEeachIteration = 5;
 
         // CONFIGURATION ARRAYS
 
@@ -51,7 +51,7 @@ namespace ML_Baseball_FeatureImportanceColumnDrop
             Console.WriteLine("1) Whether a baseball batter would make it on the HOF Ballot (OnHallOfFameBallot)");
             Console.WriteLine("2) Whether a baseball batter would be inducted to the HOF (InductedToHallOfFame).");
             Console.WriteLine("Based on an MLB batter's summarized career batting statistics.\n");
-            Console.WriteLine("Note: The goal is to build a 'good enough' set of models & showcase the ML.NET framework.");
+            Console.WriteLine("Note: The goal is to build a 'good enough' set of models & showcase the feature column drop.");
             Console.WriteLine("Note: For better models advanced historical scaling and features should be performed.");
             Console.ResetColor();
             Console.WriteLine();
